@@ -8,12 +8,15 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"time"
 )
 
 const (
-	whisperURL = "https://api.openai.com/v1/audio/transcriptions"
-	chatURL    = "https://api.openai.com/v1/chat/completions"
-	ttsURL     = "https://api.openai.com/v1/audio/speech"
+	memoryFile  = "memory.txt"
+	memoryLimit = 50
+	whisperURL  = "https://api.openai.com/v1/audio/transcriptions"
+	chatURL     = "https://api.openai.com/v1/chat/completions"
+	ttsURL      = "https://api.openai.com/v1/audio/speech"
 
 	chatModel = "gpt-4.1"
 	ttsModel  = "tts-1"
@@ -69,9 +72,33 @@ func transcribeAudio(apiKey, filepath string) (string, error) {
 }
 
 func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string, error) {
+	messagesWithSystemPrompt := []map[string]string{
+		{
+			"role":    "system",
+			"content": "Today's date time is:" + time.Now().String(),
+		},
+	}
+	messagesWithSystemPrompt = append(messagesWithSystemPrompt, messages...)
+
 	bodyData := map[string]any{
 		"model":    chatModel,
-		"messages": messages,
+		"messages": messagesWithSystemPrompt,
+		"response_format": map[string]any{
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name": "assistant_response",
+				"schema": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"speak":  map[string]any{"type": "string"},
+						"memory": map[string]any{"type": "string"},
+					},
+					"required":             []string{"speak", "memory"},
+					"additionalProperties": false,
+				},
+				"strict": true,
+			},
+		},
 	}
 	body, _ := json.Marshal(bodyData)
 
@@ -88,6 +115,12 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string
 	}
 	defer resp.Body.Close()
 
+	// If status code is not 2xx, decode error
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errResp, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("OpenAI API error: %s", string(errResp))
+	}
+
 	var res struct {
 		Choices []struct {
 			Message struct {
@@ -98,6 +131,11 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return "", err
 	}
+
+	if len(res.Choices) == 0 {
+		return "", fmt.Errorf("no choices returned from API")
+	}
+
 	return res.Choices[0].Message.Content, nil
 }
 
@@ -136,8 +174,15 @@ func main() {
 
 	var messages = []map[string]string{
 		{
+			"role": "system",
+			"content": "You are a helpful voice assistant." +
+				"Periodically remind the user of timers, todos and other tasks they have asked you to remember." +
+				"Keep responses short, conversational, and output JSON: " +
+				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON.",
+		},
+		{
 			"role":    "system",
-			"content": "You are a helpful voice assistant. Keep your responses short, conversational, and easy to understand. Do not include code blocks, lists, or technical formatting — only speak in plain sentences.",
+			"content": "Assistant memory: " + loadMemory(),
 		},
 	}
 
@@ -184,9 +229,17 @@ func main() {
 			messages = messages[len(messages)-10:]
 		}
 
-		if err := speak(apiKey, reply); err != nil {
-			fmt.Println("TTS failed:", err)
-			return
+		var result struct {
+			Speak  string `json:"speak"`
+			Memory string `json:"memory"`
+		}
+
+		if err := json.Unmarshal([]byte(reply), &result); err != nil {
+			// fallback: speak full response
+			speak(apiKey, reply)
+		} else {
+			saveMemory(result.Memory)
+			speak(apiKey, result.Speak)
 		}
 	}
 }
