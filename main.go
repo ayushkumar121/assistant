@@ -69,7 +69,7 @@ func transcribeAudio(apiKey, filepath string) (string, error) {
 }
 
 func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string, error) {
-	bodyData := map[string]interface{}{
+	bodyData := map[string]any{
 		"model":    chatModel,
 		"messages": messages,
 	}
@@ -101,8 +101,8 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string
 	return res.Choices[0].Message.Content, nil
 }
 
-func synthesizeSpeech(apiKey, text, outputPath string) error {
-	bodyData := map[string]interface{}{
+func speak(apiKey, text string) error {
+	bodyData := map[string]any{
 		"model": ttsModel,
 		"input": text,
 		"voice": ttsVoice,
@@ -122,13 +122,7 @@ func synthesizeSpeech(apiKey, text, outputPath string) error {
 	}
 	defer resp.Body.Close()
 
-	out, err := os.Create(outputPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, resp.Body)
-	return err
+	return speakFromReader(resp.Body)
 }
 
 func main() {
@@ -139,13 +133,6 @@ func main() {
 		return
 	}
 	defer os.Remove(audioFile.Name()) // cleanup after run
-
-	outputMP3, err := os.CreateTemp("", "response-*.mp3")
-	if err != nil {
-		fmt.Println("❌ Failed to create temp mp3 file:", err)
-		return
-	}
-	defer os.Remove(outputMP3.Name()) // cleanup after run
 
 	var messages = []map[string]string{
 		{
@@ -197,13 +184,9 @@ func main() {
 			messages = messages[len(messages)-10:]
 		}
 
-		if err := synthesizeSpeech(apiKey, reply, outputMP3.Name()); err != nil {
+		if err := speak(apiKey, reply); err != nil {
 			fmt.Println("TTS failed:", err)
 			return
-		}
-
-		if err := playAudio(outputMP3.Name()); err != nil {
-			fmt.Println("Playback failed:", err)
 		}
 	}
 }
