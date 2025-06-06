@@ -1,3 +1,5 @@
+//go:build darwin || linux
+
 package main
 
 import (
@@ -8,22 +10,38 @@ import (
 	"runtime"
 )
 
-func recordAudio(filepath string, seconds int) error {
-	fmt.Println("🎙️ Recording audio...")
-
+// startAudioCapture starts ffmpeg and returns a pipe of raw WAV audio
+func startAudioCapture(duration int) (io.ReadCloser, error) {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("ffmpeg", "-f", "avfoundation", "-i", ":0", "-t", fmt.Sprintf("%d", seconds), "-ac", "1", "-ar", "16000", "-y", filepath)
+		cmd = exec.Command("ffmpeg",
+			"-f", "avfoundation", "-i", ":0",
+			"-t", fmt.Sprintf("%d", duration),
+			"-ac", "1", "-ar", "16000", "-f", "wav", "-")
+
 	case "linux":
-		cmd = exec.Command("ffmpeg", "-f", "alsa", "-i", "default", "-t", fmt.Sprintf("%d", seconds), "-ac", "1", "-ar", "16000", "-y", filepath)
+		cmd = exec.Command("ffmpeg",
+			"-f", "alsa", "-i", "default",
+			"-t", fmt.Sprintf("%d", duration),
+			"-ac", "1", "-ar", "16000", "-f", "wav", "-")
+
 	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		return nil, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdin
-	return cmd.Run()
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg stdout error: %v", err)
+	}
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start ffmpeg: %v", err)
+	}
+
+	return stdout, nil
 }
 
 // speakFromReader runs the platform-specific audio player and streams from r

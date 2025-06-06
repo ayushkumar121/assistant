@@ -32,24 +32,28 @@ func getAPIKey() string {
 	return key
 }
 
-func transcribeAudio(apiKey, filepath string) (string, error) {
-	file, err := os.Open(filepath)
+func transcribeStream(apiKey string, duration int) (string, error) {
+	audioStream, err := startAudioCapture(duration)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("audio stream error: %v", err)
 	}
-	defer file.Close()
+	defer audioStream.Close()
 
-	var buf bytes.Buffer
-	writer := multipart.NewWriter(&buf)
-	part, err := writer.CreateFormFile("file", filepath)
-	if err != nil {
-		return "", err
-	}
-	io.Copy(part, file)
-	writer.WriteField("model", "whisper-1")
-	writer.Close()
+	pr, pw := io.Pipe()
+	writer := multipart.NewWriter(pw)
 
-	req, err := http.NewRequest("POST", whisperURL, &buf)
+	// stream audio + form data into pipe
+	go func() {
+		defer pw.Close()
+
+		part, _ := writer.CreateFormFile("file", "audio.wav")
+		io.Copy(part, audioStream)
+
+		writer.WriteField("model", "whisper-1")
+		writer.Close()
+	}()
+
+	req, err := http.NewRequest("POST", whisperURL, pr)
 	if err != nil {
 		return "", err
 	}
@@ -62,12 +66,19 @@ func transcribeAudio(apiKey, filepath string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	// If status code is not 2xx, decode error
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errResp, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("OpenAI API error: %s", string(errResp))
+	}
+
 	var res struct {
 		Text string `json:"text"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return "", err
 	}
+
 	return res.Text, nil
 }
 
@@ -165,12 +176,6 @@ func speak(apiKey, text string) error {
 
 func main() {
 	apiKey := getAPIKey()
-	audioFile, err := os.CreateTemp("", "recording-*.wav")
-	if err != nil {
-		fmt.Println("❌ Failed to create temp audio file:", err)
-		return
-	}
-	defer os.Remove(audioFile.Name()) // cleanup after run
 
 	var messages = []map[string]string{
 		{
@@ -178,7 +183,8 @@ func main() {
 			"content": "You are a helpful voice assistant." +
 				"Periodically remind the user of timers, todos and other tasks they have asked you to remember." +
 				"Keep responses short, conversational, and output JSON: " +
-				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON.",
+				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON." +
+				"Only include memory for important information",
 		},
 		{
 			"role":    "system",
@@ -187,12 +193,7 @@ func main() {
 	}
 
 	for {
-		if err := recordAudio(audioFile.Name(), 10); err != nil {
-			fmt.Println("Recording failed:", err)
-			return
-		}
-
-		text, err := transcribeAudio(apiKey, audioFile.Name())
+		text, err := transcribeStream(apiKey, 10)
 		if err != nil {
 			fmt.Println("Transcription failed:", err)
 			return
