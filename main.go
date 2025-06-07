@@ -12,15 +12,16 @@ import (
 )
 
 const (
-	memoryFile  = "memory.txt"
-	memoryLimit = 50
-	whisperURL  = "https://api.openai.com/v1/audio/transcriptions"
-	chatURL     = "https://api.openai.com/v1/chat/completions"
-	ttsURL      = "https://api.openai.com/v1/audio/speech"
+	memoryFile       = "memory.txt"
+	memoryLimit      = 50
+	chatHistoryLimit = 20
+	whisperURL       = "https://api.openai.com/v1/audio/transcriptions"
+	chatURL          = "https://api.openai.com/v1/chat/completions"
+	ttsURL           = "https://api.openai.com/v1/audio/speech"
 
 	chatModel = "gpt-4.1"
 	ttsModel  = "tts-1"
-	ttsVoice  = "ash"
+	ttsVoice  = "alloy"
 )
 
 func getAPIKey() string {
@@ -83,17 +84,9 @@ func transcribeStream(apiKey string, duration int) (string, error) {
 }
 
 func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string, error) {
-	messagesWithSystemPrompt := []map[string]string{
-		{
-			"role":    "system",
-			"content": "Today's date time is:" + time.Now().String(),
-		},
-	}
-	messagesWithSystemPrompt = append(messagesWithSystemPrompt, messages...)
-
 	bodyData := map[string]any{
 		"model":    chatModel,
-		"messages": messagesWithSystemPrompt,
+		"messages": messages,
 		"response_format": map[string]any{
 			"type": "json_schema",
 			"json_schema": map[string]any{
@@ -177,20 +170,24 @@ func speak(apiKey, text string) error {
 func main() {
 	apiKey := getAPIKey()
 
-	var messages = []map[string]string{
+	// Static instructions and memory
+	systemMessages := []map[string]string{
 		{
 			"role": "system",
-			"content": "You are a helpful voice assistant." +
-				"Periodically remind the user of timers, todos and other tasks they have asked you to remember." +
+			"content": "You are a helpful voice assistant. " +
+				"Periodically remind the user of timers, todos and other tasks they have asked you to remember. " +
 				"Keep responses short, conversational, and output JSON: " +
-				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON." +
-				"Only include memory for important information",
+				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON. " +
+				"Only include memory for important information. Return empty string if no important memory is found",
 		},
 		{
 			"role":    "system",
 			"content": "Assistant memory: " + loadMemory(),
 		},
 	}
+
+	// This holds only user ↔ assistant turns
+	var chatHistory []map[string]string
 
 	for {
 		text, err := transcribeStream(apiKey, 10)
@@ -200,16 +197,21 @@ func main() {
 		}
 		fmt.Println("🗣️ You said:", text)
 
-		// Add user message
-		messages = append(messages, map[string]string{
+		chatHistory = append(chatHistory, map[string]string{
 			"role":    "user",
 			"content": text,
 		})
 
-		// Keep only the last 10 messages
-		if len(messages) > 10 {
-			messages = messages[len(messages)-10:]
+		// Trim to last `chatHistoryLimit` non-system messages
+		if len(chatHistory) > chatHistoryLimit {
+			chatHistory = chatHistory[len(chatHistory)-chatHistoryLimit:]
 		}
+
+		// Merge system + dynamic messages
+		messages := append([]map[string]string{
+			{"role": "system", "content": "Today's date time is: " + time.Now().String()},
+		}, systemMessages...)
+		messages = append(messages, chatHistory...)
 
 		// Send to GPT with context
 		reply, err := chatWithGPTWithHistory(apiKey, messages)
