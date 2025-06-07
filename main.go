@@ -19,9 +19,10 @@ const (
 	chatURL          = "https://api.openai.com/v1/chat/completions"
 	ttsURL           = "https://api.openai.com/v1/audio/speech"
 
-	chatModel = "gpt-4.1"
-	ttsModel  = "tts-1"
-	ttsVoice  = "alloy"
+	whisperModel = "whisper-1"
+	chatModel    = "gpt-4.1"
+	ttsModel     = "tts-1"
+	ttsVoice     = "alloy"
 )
 
 func getAPIKey() string {
@@ -50,7 +51,7 @@ func transcribeStream(apiKey string, duration int) (string, error) {
 		part, _ := writer.CreateFormFile("file", "audio.wav")
 		io.Copy(part, audioStream)
 
-		writer.WriteField("model", "whisper-1")
+		writer.WriteField("model", whisperModel)
 		writer.Close()
 	}()
 
@@ -83,7 +84,12 @@ func transcribeStream(apiKey string, duration int) (string, error) {
 	return res.Text, nil
 }
 
-func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string, error) {
+type ChatGPTResponse struct {
+	Speak  string `json:"speak"`
+	Memory string `json:"memory"`
+}
+
+func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (*ChatGPTResponse, error) {
 	bodyData := map[string]any{
 		"model":    chatModel,
 		"messages": messages,
@@ -108,21 +114,21 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string
 
 	req, err := http.NewRequest("POST", chatURL, bytes.NewBuffer(body))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// If status code is not 2xx, decode error
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errResp, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("OpenAI API error: %s", string(errResp))
+		return nil, fmt.Errorf("OpenAI API error: %s", string(errResp))
 	}
 
 	var res struct {
@@ -133,14 +139,20 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (string
 		} `json:"choices"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(res.Choices) == 0 {
-		return "", fmt.Errorf("no choices returned from API")
+		return nil, fmt.Errorf("no choices returned from API")
+	}
+	rawResponse := res.Choices[0].Message.Content
+
+	var response ChatGPTResponse
+	if err := json.Unmarshal([]byte(res.Choices[0].Message.Content), &response); err != nil {
+		return nil, fmt.Errorf("malformed response: %v", rawResponse)
 	}
 
-	return res.Choices[0].Message.Content, nil
+	return &response, nil
 }
 
 func speak(apiKey, text string) error {
@@ -214,17 +226,18 @@ func main() {
 		messages = append(messages, chatHistory...)
 
 		// Send to GPT with context
-		reply, err := chatWithGPTWithHistory(apiKey, messages)
+		response, err := chatWithGPTWithHistory(apiKey, messages)
 		if err != nil {
 			fmt.Println("ChatGPT error:", err)
 			return
 		}
-		fmt.Println("🤖 GPT says:", reply)
+		fmt.Println("🤖 GPT says:", response.Speak)
+		fmt.Println("🤖 GPT will remember:", response.Memory)
 
 		// Add assistant message
 		messages = append(messages, map[string]string{
 			"role":    "assistant",
-			"content": reply,
+			"content": response.Speak,
 		})
 
 		// Keep only the last 10 messages again
@@ -232,17 +245,7 @@ func main() {
 			messages = messages[len(messages)-10:]
 		}
 
-		var result struct {
-			Speak  string `json:"speak"`
-			Memory string `json:"memory"`
-		}
-
-		if err := json.Unmarshal([]byte(reply), &result); err != nil {
-			// fallback: speak full response
-			speak(apiKey, reply)
-		} else {
-			saveMemory(result.Memory)
-			speak(apiKey, result.Speak)
-		}
+		saveMemory(response.Memory)
+		speak(apiKey, response.Speak)
 	}
 }
