@@ -11,30 +11,7 @@ import (
 	"time"
 )
 
-const (
-	memoryFile       = "memory.txt"
-	memoryLimit      = 50
-	chatHistoryLimit = 20
-	whisperURL       = "https://api.openai.com/v1/audio/transcriptions"
-	chatURL          = "https://api.openai.com/v1/chat/completions"
-	ttsURL           = "https://api.openai.com/v1/audio/speech"
-
-	whisperModel = "whisper-1"
-	chatModel    = "gpt-4.1"
-	ttsModel     = "tts-1"
-	ttsVoice     = "alloy"
-)
-
-func getAPIKey() string {
-	key := os.Getenv("OPENAI_API_KEY")
-	if key == "" {
-		fmt.Println("❌ OPENAI_API_KEY environment variable not set")
-		os.Exit(1)
-	}
-	return key
-}
-
-func transcribeStream(apiKey string, duration int) (string, error) {
+func transcribeStream(duration int) (string, error) {
 	audioStream, err := startAudioCapture(duration)
 	if err != nil {
 		return "", fmt.Errorf("audio stream error: %v", err)
@@ -59,7 +36,7 @@ func transcribeStream(apiKey string, duration int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+OpenAIAPIKey)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := http.DefaultClient.Do(req)
@@ -89,7 +66,7 @@ type ChatGPTResponse struct {
 	Memory string `json:"memory"`
 }
 
-func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (*ChatGPTResponse, error) {
+func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, error) {
 	bodyData := map[string]any{
 		"model":    chatModel,
 		"messages": messages,
@@ -116,7 +93,7 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (*ChatG
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+OpenAIAPIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -155,7 +132,7 @@ func chatWithGPTWithHistory(apiKey string, messages []map[string]string) (*ChatG
 	return &response, nil
 }
 
-func speak(apiKey, text string) error {
+func speak(text string) error {
 	bodyData := map[string]any{
 		"model": ttsModel,
 		"input": text,
@@ -167,7 +144,7 @@ func speak(apiKey, text string) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Authorization", "Bearer "+OpenAIAPIKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -180,7 +157,10 @@ func speak(apiKey, text string) error {
 }
 
 func main() {
-	apiKey := getAPIKey()
+    if OpenAIAPIKey == "" {
+		fmt.Println("❌ OPENAI_API_KEY environment variable not set")
+		os.Exit(1)
+	}
 
 	// Static instructions and memory
 	systemMessages := []map[string]string{
@@ -202,7 +182,7 @@ func main() {
 	var chatHistory []map[string]string
 
 	for {
-		text, err := transcribeStream(apiKey, 10)
+		text, err := transcribeStream(10)
 		if err != nil {
 			fmt.Println("Transcription failed:", err)
 			return
@@ -226,7 +206,7 @@ func main() {
 		messages = append(messages, chatHistory...)
 
 		// Send to GPT with context
-		response, err := chatWithGPTWithHistory(apiKey, messages)
+		response, err := chatWithGPTWithHistory(messages)
 		if err != nil {
 			fmt.Println("ChatGPT error:", err)
 			return
@@ -246,6 +226,6 @@ func main() {
 		}
 
 		saveMemory(response.Memory)
-		speak(apiKey, response.Speak)
+		speak(response.Speak)
 	}
 }
