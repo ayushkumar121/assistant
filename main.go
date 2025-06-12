@@ -11,28 +11,33 @@ import (
 	"time"
 )
 
-func transcribeStream(duration int) (string, error) {
-	audioStream, err := startAudioCapture(duration)
+func transcribeStream() (string, error) {
+	filePath, err := startAudioCapture()
 	if err != nil {
-		return "", fmt.Errorf("audio stream error: %v", err)
+		return "", fmt.Errorf("audio capture error: %v", err)
 	}
-	defer audioStream.Close()
+	defer os.Remove(filePath)
 
-	pr, pw := io.Pipe()
-	writer := multipart.NewWriter(pw)
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open audio file: %v", err)
+	}
+	defer file.Close()
 
-	// stream audio + form data into pipe
-	go func() {
-		defer pw.Close()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
 
-		part, _ := writer.CreateFormFile("file", "audio.wav")
-		io.Copy(part, audioStream)
+	part, err := writer.CreateFormFile("file", "audio.wav")
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", err
+	}
+	writer.WriteField("model", whisperModel)
+	writer.Close()
 
-		writer.WriteField("model", whisperModel)
-		writer.Close()
-	}()
-
-	req, err := http.NewRequest("POST", whisperURL, pr)
+	req, err := http.NewRequest("POST", whisperURL, &body)
 	if err != nil {
 		return "", err
 	}
@@ -45,7 +50,6 @@ func transcribeStream(duration int) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	// If status code is not 2xx, decode error
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errResp, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("OpenAI API error: %s", string(errResp))
@@ -157,7 +161,7 @@ func speak(text string) error {
 }
 
 func main() {
-    if OpenAIAPIKey == "" {
+	if OpenAIAPIKey == "" {
 		fmt.Println("❌ OPENAI_API_KEY environment variable not set")
 		os.Exit(1)
 	}
@@ -182,7 +186,7 @@ func main() {
 	var chatHistory []map[string]string
 
 	for {
-		text, err := transcribeStream(10)
+		text, err := transcribeStream()
 		if err != nil {
 			fmt.Println("Transcription failed:", err)
 			return

@@ -3,45 +3,70 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
+	"time"
 )
 
-// startAudioCapture starts ffmpeg and returns a pipe of raw WAV audio
-func startAudioCapture(duration int) (io.ReadCloser, error) {
-	var cmd *exec.Cmd
+func startAudioCapture() (string, error) {
+	tmpFile := "/tmp/audio.wav"
+	_ = os.Remove(tmpFile)
 
+	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command("ffmpeg",
 			"-f", "avfoundation", "-i", ":0",
-			"-t", fmt.Sprintf("%d", duration),
-			"-ac", "1", "-ar", "16000", "-f", "wav", "-")
-
+			"-af", "silencedetect=noise=-30dB:d=2",
+			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-t", fmt.Sprintf("%d", duration),
-			"-ac", "1", "-ar", "16000", "-f", "wav", "-")
-
+			"-af", "silencedetect=noise=-30dB:d=2",
+			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	default:
-		return nil, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("ffmpeg stdout error: %v", err)
-	}
-	cmd.Stderr = os.Stderr
+	stdinPipe, _ := cmd.StdinPipe()
+	stderrPipe, _ := cmd.StderrPipe()
+	cmd.Stdout = io.Discard
 
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start ffmpeg: %v", err)
+		return "", fmt.Errorf("failed to start ffmpeg: %v", err)
 	}
 
-	return stdout, nil
+	done := make(chan struct{})
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			fmt.Fprintln(os.Stderr, line)
+			if strings.Contains(line, "silence_start") {
+				stdinPipe.Write([]byte("q\n")) // graceful stop
+				break
+			}
+		}
+		cmd.Wait()
+		close(done)
+	}()
+
+	<-done
+
+	// Ensure file is ready
+	for range 20 {
+		if fi, err := os.Stat(tmpFile); err == nil && fi.Size() > 1024 {
+			return tmpFile, nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return "", fmt.Errorf("audio file was not created or too small")
 }
 
 // speakFromReader runs the platform-specific audio player and streams from r
