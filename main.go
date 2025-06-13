@@ -162,8 +162,7 @@ func speak(text string) error {
 
 func main() {
 	if OpenAIAPIKey == "" {
-		fmt.Println("❌ OPENAI_API_KEY environment variable not set")
-		os.Exit(1)
+		logger.Fatal("❌ OPENAI_API_KEY environment variable not set")
 	}
 
 	// Static instructions and memory
@@ -188,10 +187,10 @@ func main() {
 	for {
 		text, err := transcribeStream()
 		if err != nil {
-			fmt.Println("Transcription failed:", err)
-			return
+			logger.Println("Transcription failed:", err)
+			continue
 		}
-		fmt.Println("🗣️ You said:", text)
+		logger.Println("You said:", text)
 
 		chatHistory = append(chatHistory, map[string]string{
 			"role":    "user",
@@ -212,11 +211,11 @@ func main() {
 		// Send to GPT with context
 		response, err := chatWithGPTWithHistory(messages)
 		if err != nil {
-			fmt.Println("ChatGPT error:", err)
+			logger.Println("ChatGPT error:", err)
 			return
 		}
-		fmt.Println("🤖 GPT says:", response.Speak)
-		fmt.Println("🤖 GPT will remember:", response.Memory)
+		logger.Println("GPT says:", response.Speak)
+		logger.Println("GPT will remember:", response.Memory)
 
 		// Add assistant message
 		messages = append(messages, map[string]string{

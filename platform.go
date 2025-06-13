@@ -41,13 +41,16 @@ func startAudioCapture() (string, error) {
 		return "", fmt.Errorf("failed to start ffmpeg: %v", err)
 	}
 
+	logger.Println("Recording started")
+
 	done := make(chan struct{})
 	go func() {
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
-			fmt.Fprintln(os.Stderr, line)
+			debugLogger.Println(line)
 			if strings.Contains(line, "silence_start") {
+				logger.Println("Recording stopped")
 				stdinPipe.Write([]byte("q\n")) // graceful stop
 				break
 			}

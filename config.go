@@ -1,6 +1,15 @@
 package main
 
-var OpenAIAPIKey string
+import (
+	"io"
+	"log"
+	"os"
+)
+
+var (
+	OpenAIAPIKey string
+	DebugMode    string
+)
 
 const (
 	memoryFile       = "memory.txt"
@@ -15,3 +24,12 @@ const (
 	ttsModel     = "tts-1"
 	ttsVoice     = "alloy"
 )
+
+var debugLogger = log.New(io.Discard, "DEBUG ", log.LstdFlags)
+var logger = log.New(os.Stderr, "INFO ", log.LstdFlags)
+
+func init() {
+	if DebugMode != "" {
+		debugLogger.SetOutput(os.Stderr)
+	}
+}
