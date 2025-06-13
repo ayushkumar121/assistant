@@ -76,9 +76,13 @@ func startAudioCapture() (string, error) {
 func speakFromReader(r io.Reader) error {
 	cmd := exec.Command("mpg123", "-")
 	cmd.Stdin = r
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	fmt.Println("🔊 Speaking...")
+	if DebugEnabled() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stdout = io.Discard
+		cmd.Stderr = io.Discard
+	}
+	logger.Println("Speaking...")
 	return cmd.Run()
 }

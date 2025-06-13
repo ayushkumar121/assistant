@@ -28,8 +28,12 @@ const (
 var debugLogger = log.New(io.Discard, "DEBUG ", log.LstdFlags)
 var logger = log.New(os.Stderr, "INFO ", log.LstdFlags)
 
+func DebugEnabled() bool {
+	return DebugMode != ""
+}
+
 func init() {
-	if DebugMode != "" {
+	if DebugEnabled() {
 		debugLogger.SetOutput(os.Stderr)
 	}
 }
