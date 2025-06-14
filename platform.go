@@ -20,14 +20,14 @@ func startAudioCapture() (string, error) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command("ffmpeg",
+		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silencedetect=noise=-30dB:d=2",
+			"-af", "silencedetect=noise=-50dB:d=2",
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	case "linux":
-		cmd = exec.Command("ffmpeg",
+		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "alsa", "-i", "default",
-			"-af", "silencedetect=noise=-30dB:d=2",
+			"-af", "silencedetect=noise=-50dB:d=2",
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
@@ -48,7 +48,9 @@ func startAudioCapture() (string, error) {
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
-			debugLogger.Println(line)
+			if DebugEnabled() {
+				fmt.Println(line)
+			}
 			if strings.Contains(line, "silence_start") {
 				logger.Println("Recording stopped")
 				stdinPipe.Write([]byte("q\n")) // graceful stop
@@ -74,7 +76,7 @@ func startAudioCapture() (string, error) {
 
 // speakFromReader runs the platform-specific audio player and streams from r
 func speakFromReader(r io.Reader) error {
-	cmd := exec.Command("mpg123", "-")
+	cmd := exec.Command(resolveExecutablePath("ffplay"), "-")
 	cmd.Stdin = r
 	if DebugEnabled() {
 		cmd.Stdout = os.Stdout

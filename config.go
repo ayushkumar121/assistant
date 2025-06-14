@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var (
@@ -36,4 +37,13 @@ func init() {
 	if DebugEnabled() {
 		debugLogger.SetOutput(os.Stderr)
 	}
+}
+
+func resolveExecutablePath(name string) string {
+	programPath, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+
+	return filepath.Join(filepath.Dir(programPath), name)
 }
