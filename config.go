@@ -16,6 +16,7 @@ const (
 	memoryFile       = "memory.txt"
 	memoryLimit      = 50
 	chatHistoryLimit = 20
+	maxAudioDuration = 12
 	whisperURL       = "https://api.openai.com/v1/audio/transcriptions"
 	chatURL          = "https://api.openai.com/v1/chat/completions"
 	ttsURL           = "https://api.openai.com/v1/audio/speech"

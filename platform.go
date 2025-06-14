@@ -23,11 +23,13 @@ func startAudioCapture() (string, error) {
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
 			"-af", "silencedetect=noise=-50dB:d=2",
+			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	case "linux":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "alsa", "-i", "default",
 			"-af", "silencedetect=noise=-50dB:d=2",
+			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
@@ -76,7 +78,7 @@ func startAudioCapture() (string, error) {
 
 // speakFromReader runs the platform-specific audio player and streams from r
 func speakFromReader(r io.Reader) error {
-	cmd := exec.Command(resolveExecutablePath("ffplay"), "-")
+	cmd := exec.Command(resolveExecutablePath("ffplay"), "-autoexit", "-")
 	cmd.Stdin = r
 	if DebugEnabled() {
 		cmd.Stdout = os.Stdout
