@@ -23,14 +23,14 @@ func startAudioCapture() (string, error) {
 			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
-			"-f", "wav", tmpFile)
+			"-c:a", "flac", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
 			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
-			"-f", "wav", tmpFile)
+			"-c:a", "flac", tmpFile)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
