@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strings"
 	"time"
 )
 
@@ -22,13 +21,11 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silencedetect=noise=-50dB:d=2",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-af", "silencedetect=noise=-50dB:d=2",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
 	default:
@@ -36,37 +33,30 @@ func startAudioCapture() (string, error) {
 	}
 
 	stdinPipe, _ := cmd.StdinPipe()
-	stderrPipe, _ := cmd.StderrPipe()
+	if DebugEnabled() {
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stderr = io.Discard
+	}
 	cmd.Stdout = io.Discard
 
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start ffmpeg: %v", err)
 	}
 
-	logger.Println("Recording started")
+	logger.Println("Recording started. Press any Enter to stop...")
 
-	done := make(chan struct{})
 	go func() {
-		scanner := bufio.NewScanner(stderrPipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if DebugEnabled() {
-				fmt.Println(line)
-			}
-			if strings.Contains(line, "silence_start") {
-				logger.Println("Recording stopped")
-				stdinPipe.Write([]byte("q\n")) // graceful stop
-				break
-			}
-		}
-		cmd.Wait()
-		close(done)
+		bufio.NewReader(os.Stdin).ReadByte()
+		stdinPipe.Write([]byte("q\n"))
+		logger.Println("Recording stopped")
 	}()
 
-	<-done
+	// Wait until the command exits
+	cmd.Wait()
 
 	// Ensure file is ready
-	for i:=0; i<20; i++ {
+	for i := 0; i < 20; i++ {
 		if fi, err := os.Stat(tmpFile); err == nil && fi.Size() > 1024 {
 			return tmpFile, nil
 		}
