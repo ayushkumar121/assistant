@@ -66,7 +66,7 @@ func startAudioCapture() (string, error) {
 	<-done
 
 	// Ensure file is ready
-	for range 20 {
+	for i:=0; i<20; i++ {
 		if fi, err := os.Stat(tmpFile); err == nil && fi.Size() > 1024 {
 			return tmpFile, nil
 		}
