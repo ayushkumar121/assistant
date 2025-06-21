@@ -16,15 +16,15 @@ const (
 	memoryFile       = "memory.txt"
 	memoryLimit      = 50
 	chatHistoryLimit = 20
-	maxAudioDuration = 12
+	maxAudioDuration = 15
 	whisperURL       = "https://api.openai.com/v1/audio/transcriptions"
 	chatURL          = "https://api.openai.com/v1/chat/completions"
 	ttsURL           = "https://api.openai.com/v1/audio/speech"
 
 	whisperModel = "whisper-1"
-	chatModel    = "gpt-4.1"
-	ttsModel     = "tts-1"
-	ttsVoice     = "alloy"
+	chatModel    = "gpt-4o-mini"
+	ttsModel     = "gpt-4o-mini-tts"
+	ttsVoice     = "onyx"
 )
 
 var debugLogger = log.New(io.Discard, "DEBUG ", log.LstdFlags)

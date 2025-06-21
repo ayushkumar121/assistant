@@ -2,7 +2,7 @@ LD_FLAGS = -X 'main.OpenAIAPIKey=$(OPENAI_API_KEY)' -X 'main.DebugMode=$(DEBUG_M
 
 .PHONY: clean
 
-assistant: main.go memory.go platform.go config.go
+assistant: main.go memory.go platform.go openai.go config.go
 	go build -ldflags="$(LD_FLAGS)" -o assistant .
 
 assistant.zip: assistant ffmpeg ffplay assistant_run.sh

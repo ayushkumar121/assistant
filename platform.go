@@ -9,11 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"time"
 )
 
 func startAudioCapture() (string, error) {
-	tmpFile := "/tmp/audio.wav"
+	tmpFile := "/tmp/audio.flac"
 	_ = os.Remove(tmpFile)
 
 	var cmd *exec.Cmd
@@ -21,13 +20,17 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
+			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
 			"-t", fmt.Sprint(maxAudioDuration),
-			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
+			"-ac", "1", "-ar", "16000",
+			"-f", "wav", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
+			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
 			"-t", fmt.Sprint(maxAudioDuration),
-			"-ac", "1", "-ar", "16000", "-f", "wav", tmpFile)
+			"-ac", "1", "-ar", "16000",
+			"-f", "wav", tmpFile)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
@@ -55,15 +58,7 @@ func startAudioCapture() (string, error) {
 	// Wait until the command exits
 	cmd.Wait()
 
-	// Ensure file is ready
-	for i := 0; i < 20; i++ {
-		if fi, err := os.Stat(tmpFile); err == nil && fi.Size() > 1024 {
-			return tmpFile, nil
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	return "", fmt.Errorf("audio file was not created or too small")
+	return tmpFile, nil
 }
 
 // speakFromReader runs the platform-specific audio player and streams from r
