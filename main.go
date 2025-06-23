@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 )
 
@@ -13,7 +14,7 @@ func main() {
 	systemMessages := []map[string]string{
 		{
 			"role": "system",
-			"content": "You are a helpful voice assistant. Your pronouns are He/Him. " +
+			"content": "You are a helpful voice assistant. Your pronouns are He/Him. Your name is " + wakeWord +
 				"Periodically remind the user of timers, todos and other tasks they have asked you to remember. " +
 				"Keep responses short, conversational, and output JSON: " +
 				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON. " +
@@ -29,7 +30,26 @@ func main() {
 	var chatHistory []map[string]string
 
 	for {
-		text, err := transcribeStream()
+		recordingFile, err := recordAudio(recordingDuration)
+		if err != nil {
+			logger.Println("Transcription failed:", err)
+			continue
+		}
+
+		text, err := transcribeStreamLocally(recordingFile)
+		if err != nil {
+			logger.Println("Local Transcription failed:", err)
+			continue
+		}
+		logger.Println("You said:", text)
+
+		if !strings.Contains(strings.ToLower(text), wakeWord) {
+			logger.Println("Wake word not detected")
+			continue
+		}
+		logger.Println("Wake word detected:", text)
+
+		text, err = transcribeStreamCloud()
 		if err != nil {
 			logger.Println("Transcription failed:", err)
 			continue
@@ -62,15 +82,10 @@ func main() {
 		logger.Println("GPT will remember:", response.Memory)
 
 		// Add assistant message
-		messages = append(messages, map[string]string{
+		chatHistory = append(chatHistory, map[string]string{
 			"role":    "assistant",
 			"content": response.Speak,
 		})
-
-		// Keep only the last 10 messages again
-		if len(messages) > 10 {
-			messages = messages[len(messages)-10:]
-		}
 
 		saveMemory(response.Memory)
 		speak(response.Speak)

@@ -1,6 +1,7 @@
 .env
 *.zip
 memory.txt
+assistant
 ffmpeg
 ffplay
 whisper.cpp**

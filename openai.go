@@ -8,9 +8,39 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 )
 
-func transcribeStream() (string, error) {
+func transcribeStreamLocally(recordingFileName string) (string, error) {
+	cmd := exec.Command(resolveExecutablePath("whisper.cpp-1.7.5/build/bin/whisper-cli"),
+		"-m", resolveExecutablePath("whisper.cpp-1.7.5/models/ggml-tiny.en.bin"),
+		"-nt", "-np",
+		"-f", recordingFileName,
+	)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	buf, err := io.ReadAll(stdout)
+	if err != nil {
+		return "", err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(buf)), nil
+}
+
+func transcribeStreamCloud() (string, error) {
 	filePath, err := startAudioCapture()
 	if err != nil {
 		return "", fmt.Errorf("audio capture error: %v", err)
@@ -137,11 +167,9 @@ func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, err
 
 func speak(text string) error {
 	bodyData := map[string]any{
-		"model": ttsModel,
-		"input": text,
-		"instructions": "Voice Affect: Calm and profressional." +
-			"Pacing: Normal but deliberate, pausing slightly after suspenseful moments to heighten drama." +
-			"Emotion: Restrained yet intense—voice should subtly tremble or tighten at key suspenseful points.",
+		"model":           ttsModel,
+		"input":           text,
+		"instructions":    "Voice Affect: Calm and profressional.",
 		"voice":           ttsVoice,
 		"response_format": "wav",
 	}

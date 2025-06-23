@@ -17,7 +17,7 @@ whisper.zip:
 	wget -O whisper.zip https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.7.5.zip
 
 assistant.zip: assistant ffmpeg ffplay assistant_run.sh
-	zip assistant.zip assistant ffmpeg ffplay assistant_run.sh
+	zip -r assistant.zip assistant ffmpeg ffplay assistant_run.sh $(WHISPER_DIR)/build $(WHISPER_DIR)/models
 
 ffmpeg:
 	curl -o ffmpeg.zip -JL https://evermeet.cx/ffmpeg/get/zip
