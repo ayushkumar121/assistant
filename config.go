@@ -40,10 +40,6 @@ var systemMessages = []map[string]string{
 			"If user asks you to end the conversation, set continueConversation to false" +
 			"If user asks you to continue the conversation, set continueConversation to true",
 	},
-	{
-		"role":    "system",
-		"content": "Assistant memory: " + loadMemory(),
-	},
 }
 
 var ttsInstructions = `Speak in a friendly, expressive, and natural tone. Use natural pauses and intonation.

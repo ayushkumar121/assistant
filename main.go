@@ -90,6 +90,7 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 	// Merge system + dynamic messages
 	messages := append([]map[string]string{
 		{"role": "system", "content": "Today's date time is: " + time.Now().String()},
+		{"role": "system", "content": "Assistant memory: " + loadMemory()},
 	}, systemMessages...)
 	messages = append(messages, chatHistory...)
 
