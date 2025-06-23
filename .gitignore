@@ -1,0 +1,7 @@
+.env
+*.zip
+memory.txt
+ffmpeg
+ffplay
+whisper.cpp**
+
