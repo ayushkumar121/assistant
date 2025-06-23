@@ -46,7 +46,7 @@ func main() {
 // Detects wake word and returns true if detected
 func detectWakeWord() bool {
 	logger.Println("Detecting wake word")
-	recordingFile, err := recordAudio(recordingDuration)
+	recordingFile, err := recordAudio(wakeWordDuration)
 	if err != nil {
 		logger.Println("Transcription failed:", err)
 		return false
