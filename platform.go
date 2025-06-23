@@ -9,10 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strings"
 )
 
 func recordAudio(duration int) (string, error) {
-	logger.Println("Listening...")
+	logger.Println("Recording audio")
 	tmpFile := "/tmp/recording.wav"
 	_ = os.Remove(tmpFile)
 
@@ -34,6 +35,12 @@ func recordAudio(duration int) (string, error) {
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 
+	if DebugEnabled() {
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stderr = io.Discard
+	}
+
 	err := cmd.Run()
 	if err != nil {
 		return "", err
@@ -42,6 +49,7 @@ func recordAudio(duration int) (string, error) {
 }
 
 func startAudioCapture() (string, error) {
+	logger.Println("Starting audio capture")
 	tmpFile := "/tmp/audio.flac"
 	_ = os.Remove(tmpFile)
 
@@ -50,14 +58,14 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
+			"-af", "silencedetect=noise=-50dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-af", "silenceremove=stop_periods=-1:stop_duration=1:stop_threshold=-40dB",
+			"-af", "silencedetect=noise=-50dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
@@ -65,17 +73,23 @@ func startAudioCapture() (string, error) {
 		return "", fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
 	stdinPipe, _ := cmd.StdinPipe()
+	stderrPipe, _ := cmd.StderrPipe()
 
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("failed to start ffmpeg: %v", err)
 	}
 
-	logger.Println("Recording started. Press any Enter to stop...")
-
 	go func() {
-		bufio.NewReader(os.Stdin).ReadByte()
-		stdinPipe.Write([]byte("q\n"))
-		logger.Println("Recording stopped")
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			debugLogger.Println(line)
+			if strings.Contains(line, "silence_end") {
+				stdinPipe.Write([]byte("q\n"))
+				logger.Println("Recording stopped")
+				break
+			}
+		}
 	}()
 
 	// Wait until the command exits

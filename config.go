@@ -29,6 +29,26 @@ const (
 	ttsVoice     = "onyx"
 )
 
+var systemMessages = []map[string]string{
+	{
+		"role": "system",
+		"content": "You are a helpful voice assistant. Your pronouns are He/Him. Your name is " + wakeWord +
+			"Periodically remind the user of timers, todos and other tasks they have asked you to remember. " +
+			"Keep responses short, conversational, and output JSON: " +
+			"{\"speak\": \"...\", \"memory\": \"...\", \"continueConversation\": \"true/false\"}. Only respond with valid JSON. " +
+			"Only include memory for important information. Return empty string if no important memory is found" +
+			"If user asks you to end the conversation, set continueConversation to false" +
+			"If user asks you to continue the conversation, set continueConversation to true",
+	},
+	{
+		"role":    "system",
+		"content": "Assistant memory: " + loadMemory(),
+	},
+}
+
+var ttsInstructions = `Speak in a friendly, expressive, and natural tone. Use natural pauses and intonation.
+ Sound like a real person having a conversation.`
+
 var debugLogger = log.New(io.Discard, "DEBUG ", log.LstdFlags)
 var logger = log.New(os.Stderr, "INFO ", log.LstdFlags)
 

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -10,84 +13,106 @@ func main() {
 		logger.Fatal("❌ OPENAI_API_KEY environment variable not set")
 	}
 
-	// Static instructions and memory
-	systemMessages := []map[string]string{
-		{
-			"role": "system",
-			"content": "You are a helpful voice assistant. Your pronouns are He/Him. Your name is " + wakeWord +
-				"Periodically remind the user of timers, todos and other tasks they have asked you to remember. " +
-				"Keep responses short, conversational, and output JSON: " +
-				"{\"speak\": \"...\", \"memory\": \"...\"}. Only respond with valid JSON. " +
-				"Only include memory for important information. Return empty string if no important memory is found",
-		},
-		{
-			"role":    "system",
-			"content": "Assistant memory: " + loadMemory(),
-		},
-	}
+	// Handle graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		logger.Println("Shutting down gracefully...")
+		os.Exit(0)
+	}()
 
 	// This holds only user ↔ assistant turns
-	var chatHistory []map[string]string
+	chatHistory := []map[string]string{}
+	conversationActive := false
 
 	for {
-		recordingFile, err := recordAudio(recordingDuration)
-		if err != nil {
-			logger.Println("Transcription failed:", err)
-			continue
+		if !conversationActive {
+			if detectWakeWord() {
+				conversationActive = true
+				speak("What can I do for you?")
+			}
+		} else {
+			// Start conversation
+			conversationActive, chatHistory = continueConversation(chatHistory)
+			if !conversationActive {
+				chatHistory = []map[string]string{}
+			}
 		}
-
-		text, err := transcribeStreamLocally(recordingFile)
-		if err != nil {
-			logger.Println("Local Transcription failed:", err)
-			continue
-		}
-		logger.Println("You said:", text)
-
-		if !strings.Contains(strings.ToLower(text), wakeWord) {
-			logger.Println("Wake word not detected")
-			continue
-		}
-		logger.Println("Wake word detected:", text)
-
-		text, err = transcribeStreamCloud()
-		if err != nil {
-			logger.Println("Transcription failed:", err)
-			continue
-		}
-		logger.Println("You said:", text)
-
-		chatHistory = append(chatHistory, map[string]string{
-			"role":    "user",
-			"content": text,
-		})
-
-		// Trim to last `chatHistoryLimit` non-system messages
-		if len(chatHistory) > chatHistoryLimit {
-			chatHistory = chatHistory[len(chatHistory)-chatHistoryLimit:]
-		}
-
-		// Merge system + dynamic messages
-		messages := append([]map[string]string{
-			{"role": "system", "content": "Today's date time is: " + time.Now().String()},
-		}, systemMessages...)
-		messages = append(messages, chatHistory...)
-
-		// Send to GPT with context
-		response, err := chatWithGPTWithHistory(messages)
-		if err != nil {
-			logger.Println("ChatGPT error:", err)
-			return
-		}
-		logger.Println("GPT says:", response.Speak)
-		logger.Println("GPT will remember:", response.Memory)
-
-		// Add assistant message
-		chatHistory = append(chatHistory, map[string]string{
-			"role":    "assistant",
-			"content": response.Speak,
-		})
-
-		saveMemory(response.Memory)
-		speak(response.Speak)
 	}
+}
+
+// Detects wake word and returns true if detected
+func detectWakeWord() bool {
+	logger.Println("Detecting wake word")
+	recordingFile, err := recordAudio(recordingDuration)
+	if err != nil {
+		logger.Println("Transcription failed:", err)
+		return false
+	}
+
+	text, err := transcribeStreamLocally(recordingFile)
+	if err != nil {
+		logger.Println("No valid speech detected")
+		return false
+	}
+	logger.Println("Transcription:", text)
+
+	if !strings.Contains(strings.ToLower(text), wakeWord) {
+		logger.Println("Wake word not detected")
+		return false
+	}
+	logger.Println("Wake word detected")
+	return true
+}
+
+// Continues conversation with GPT and returns true if conversation should continue
+func continueConversation(chatHistory []map[string]string) (bool, []map[string]string) {
+	logger.Println("Continuing conversation")
+	text, err := transcribeStreamCloud()
+	if err != nil {
+		logger.Println("Transcription failed:", err)
+		return false, chatHistory
+	}
+	logger.Println("You said:", text)
+
+	chatHistory = append(chatHistory, map[string]string{
+		"role":    "user",
+		"content": text,
+	})
+
+	// Trim to last chatHistoryLimit non-system messages
+	if len(chatHistory) > chatHistoryLimit {
+		chatHistory = chatHistory[len(chatHistory)-chatHistoryLimit:]
+	}
+
+	// Merge system + dynamic messages
+	messages := append([]map[string]string{
+		{"role": "system", "content": "Today's date time is: " + time.Now().String()},
+	}, systemMessages...)
+	messages = append(messages, chatHistory...)
+
+	response, err := chatWithGPTWithHistory(messages)
+	if err != nil {
+		logger.Println("ChatGPT error:", err)
+		return false, chatHistory
+	}
+	logger.Println("GPT says:", response.Speak)
+	logger.Println("GPT will remember:", response.Memory)
+
+	saveMemory(response.Memory)
+	speak(response.Speak)
+
+	chatHistory = append(chatHistory, map[string]string{
+		"role":    "assistant",
+		"content": response.Speak,
+	})
+
+	if !response.ContinueConversation {
+		logger.Println("Conversation ended")
+		return false, chatHistory
+	}
+
+	return true, chatHistory
 }

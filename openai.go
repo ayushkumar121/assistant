@@ -64,6 +64,7 @@ func transcribeStreamCloud() (string, error) {
 		return "", err
 	}
 	writer.WriteField("model", whisperModel)
+	writer.WriteField("language", "en")
 	writer.Close()
 
 	req, err := http.NewRequest("POST", whisperURL, &body)
@@ -95,8 +96,9 @@ func transcribeStreamCloud() (string, error) {
 }
 
 type ChatGPTResponse struct {
-	Speak  string `json:"speak"`
-	Memory string `json:"memory"`
+	Speak                string `json:"speak"`
+	Memory               string `json:"memory"`
+	ContinueConversation bool   `json:"continueConversation"`
 }
 
 func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, error) {
@@ -110,10 +112,11 @@ func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, err
 				"schema": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"speak":  map[string]any{"type": "string"},
-						"memory": map[string]any{"type": "string"},
+						"speak":                map[string]any{"type": "string"},
+						"memory":               map[string]any{"type": "string"},
+						"continueConversation": map[string]any{"type": "boolean"},
 					},
-					"required":             []string{"speak", "memory"},
+					"required":             []string{"speak", "memory", "continueConversation"},
 					"additionalProperties": false,
 				},
 				"strict": true,
@@ -169,7 +172,7 @@ func speak(text string) error {
 	bodyData := map[string]any{
 		"model":           ttsModel,
 		"input":           text,
-		"instructions":    "Voice Affect: Calm and profressional.",
+		"instructions":    ttsInstructions,
 		"voice":           ttsVoice,
 		"response_format": "wav",
 	}
