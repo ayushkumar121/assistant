@@ -58,14 +58,14 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silencedetect=noise=-50dB:d=0.5",
+			"-af", "silencedetect=noise=-50dB:d=2",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-af", "silencedetect=noise=-50dB:d=0.5",
+			"-af", "silencedetect=noise=-50dB:d=2",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
