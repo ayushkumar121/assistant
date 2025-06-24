@@ -98,13 +98,16 @@ func startAudioCapture() (string, error) {
 			} else if strings.Contains(line, "silence_end") {
 				if timer != nil {
 					timer.Stop()
+					timer = nil
 				}
 			}
 		}
 	}()
 
 	// Wait until the command exits
-	cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		return "", fmt.Errorf("ffmpeg exited with error: %v", err)
+	}
 
 	return tmpFile, nil
 }
