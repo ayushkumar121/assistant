@@ -175,6 +175,7 @@ func speak(text string) error {
 		"instructions":    ttsInstructions,
 		"voice":           ttsVoice,
 		"response_format": "wav",
+		"sample_rate":     16000,
 	}
 	body, _ := json.Marshal(bodyData)
 

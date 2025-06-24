@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
 
 func recordAudio(duration int) (string, error) {
@@ -58,14 +59,14 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silencedetect=noise=-50dB:d=2",
+			"-af", "silencedetect=noise=-50dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-af", "silencedetect=noise=-50dB:d=2",
+			"-af", "silencedetect=noise=-50dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
@@ -80,14 +81,24 @@ func startAudioCapture() (string, error) {
 	}
 
 	go func() {
+		var timer *time.Timer
 		scanner := bufio.NewScanner(stderrPipe)
 		for scanner.Scan() {
 			line := scanner.Text()
 			debugLogger.Println(line)
-			if strings.Contains(line, "silence_end") {
-				stdinPipe.Write([]byte("q\n"))
-				logger.Println("Recording stopped")
-				break
+
+			if strings.Contains(line, "silence_start") {
+				if timer != nil {
+					timer.Stop()
+				}
+				timer = time.AfterFunc(maxSilenceDuration*time.Second, func() {
+					stdinPipe.Write([]byte("q\n"))
+					logger.Println("Recording stopped")
+				})
+			} else if strings.Contains(line, "silence_end") {
+				if timer != nil {
+					timer.Stop()
+				}
 			}
 		}
 	}()

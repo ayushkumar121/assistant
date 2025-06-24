@@ -13,15 +13,16 @@ var (
 )
 
 const (
-	memoryFile       = "memory.txt"
-	memoryLimit      = 50
-	chatHistoryLimit = 20
-	maxAudioDuration = 30
-	wakeWordDuration = 4
-	wakeWord         = "alex"
-	whisperURL       = "https://api.openai.com/v1/audio/transcriptions"
-	chatURL          = "https://api.openai.com/v1/chat/completions"
-	ttsURL           = "https://api.openai.com/v1/audio/speech"
+	memoryFile         = "memory.txt"
+	memoryLimit        = 50
+	chatHistoryLimit   = 20
+	maxAudioDuration   = 30
+	wakeWordDuration   = 3
+	maxSilenceDuration = 3
+	wakeWord           = "alex"
+	whisperURL         = "https://api.openai.com/v1/audio/transcriptions"
+	chatURL            = "https://api.openai.com/v1/chat/completions"
+	ttsURL             = "https://api.openai.com/v1/audio/speech"
 
 	whisperModel = "whisper-1"
 	chatModel    = "gpt-4o-mini"
