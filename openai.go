@@ -191,5 +191,10 @@ func speak(text string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errResp, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("OpenAI API error: %s", string(errResp))
+	}
+
 	return speakFromReader(resp.Body)
 }
