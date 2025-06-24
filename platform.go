@@ -108,6 +108,11 @@ func speakFromReader(r io.Reader) error {
 		cmd = exec.Command("ffplay", "-autoexit", "-")
 	}
 	cmd.Stdin = r
+	if DebugEnabled() {
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stderr = io.Discard
+	}
 	logger.Println("Speaking...")
 	return cmd.Run()
 }
