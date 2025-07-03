@@ -13,8 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/ayushkumar121/assistant/assets"
 )
 
 func recordAudio(duration int) (string, error) {
