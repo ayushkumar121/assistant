@@ -38,8 +38,7 @@ var systemMessages = []map[string]string{
 			"Keep responses short, conversational, and output JSON: " +
 			"{\"speak\": \"...\", \"memory\": \"...\", \"continueConversation\": \"true/false\"}. Only respond with valid JSON. " +
 			"Only include memory for important information. Return empty string if no important memory is found" +
-			"If user asks you to end the conversation, set continueConversation to false" +
-			"If user asks you to continue the conversation, set continueConversation to true",
+			"If user asks you to end the conversation, set continueConversation to false otherwise true",
 	},
 }
 
