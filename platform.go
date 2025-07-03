@@ -117,10 +117,6 @@ func startAudioCapture() (string, error) {
 }
 
 func speakFromReader(r io.Reader) error {
-	if err := playAudio(assets.SilenceWav); err != nil {
-		return err
-	}
-
 	ffplayFlags := []string{
 		"-autoexit",
 		"-nodisp",
