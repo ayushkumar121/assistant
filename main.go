@@ -115,7 +115,6 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 	})
 
 	if !response.ContinueConversation {
-		playAudio(assests.NotificationWav)
 		logger.Println("Conversation ended")
 		return false, chatHistory
 	}
