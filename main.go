@@ -27,6 +27,7 @@ func main() {
 	chatHistory := []map[string]string{}
 	conversationActive := false
 
+	speak("Hi, I'm Alex")
 	for {
 		if !conversationActive {
 			if detectWakeWord() {
