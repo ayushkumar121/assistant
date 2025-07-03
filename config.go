@@ -27,7 +27,7 @@ const (
 	whisperModel = "whisper-1"
 	chatModel    = "gpt-4o-mini"
 	ttsModel     = "gpt-4o-mini-tts"
-	ttsVoice     = "alloy"
+	ttsVoice     = "onyx"
 )
 
 var systemMessages = []map[string]string{

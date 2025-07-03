@@ -13,8 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"time"
-
-	"github.com/ayushkumar121/assistant/assets"
 )
 
 func recordAudio(duration int) (string, error) {
@@ -117,10 +115,6 @@ func startAudioCapture() (string, error) {
 }
 
 func speakFromReader(r io.Reader) error {
-	if err := playAudio(assets.SilenceWav); err != nil {
-		return err
-	}
-
 	ffplayFlags := []string{
 		"-autoexit",
 		"-nodisp",
