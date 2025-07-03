@@ -1,0 +1,13 @@
+[Unit]
+Description=Voice Assistant
+After=network.target sound.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/assistant
+ExecStart=/home/pi/assistant/assistant
+Restart=always
+Environment=AUDIO_DEVICE=plughw:0,0
+
+[Install]
+WantedBy=multi-user.target
