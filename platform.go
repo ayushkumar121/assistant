@@ -4,6 +4,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -127,5 +129,25 @@ func speakFromReader(r io.Reader) error {
 		cmd.Stderr = io.Discard
 	}
 	logger.Println("Speaking...")
+	return cmd.Run()
+}
+
+func playAudio(data []byte) error {
+	r := bytes.NewReader(data)
+
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command(resolveExecutablePath("ffplay"), "-autoexit", "-")
+	case "linux":
+		cmd = exec.Command("ffplay", "-autoexit", "-")
+	}
+	cmd.Stdin = r
+	if DebugEnabled() {
+		cmd.Stderr = os.Stderr
+	} else {
+		cmd.Stderr = io.Discard
+	}
+
 	return cmd.Run()
 }
