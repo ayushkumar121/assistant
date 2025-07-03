@@ -13,6 +13,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/ayushkumar121/assistant/assests"
 )
 
 func recordAudio(duration int) (string, error) {
@@ -115,13 +117,24 @@ func startAudioCapture() (string, error) {
 }
 
 func speakFromReader(r io.Reader) error {
+	if err := playAudio(assests.SilenceWav); err != nil {
+		return err
+	}
+
+	ffplayFlags := []string{
+		"-autoexit",
+		"-nodisp",
+		"-i", "pipe:0",
+	}
+
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command(resolveExecutablePath("ffplay"), "-autoexit", "-")
+		cmd = exec.Command(resolveExecutablePath("ffplay"), ffplayFlags...)
 	case "linux":
-		cmd = exec.Command("ffplay", "-autoexit", "-")
+		cmd = exec.Command("ffplay", ffplayFlags...)
 	}
+
 	cmd.Stdin = r
 	if DebugEnabled() {
 		cmd.Stderr = os.Stderr
@@ -135,13 +148,20 @@ func speakFromReader(r io.Reader) error {
 func playAudio(data []byte) error {
 	r := bytes.NewReader(data)
 
+	ffplayFlags := []string{
+		"-autoexit",
+		"-nodisp",
+		"-i", "pipe:0",
+	}
+
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		cmd = exec.Command(resolveExecutablePath("ffplay"), "-autoexit", "-")
+		cmd = exec.Command(resolveExecutablePath("ffplay"), ffplayFlags...)
 	case "linux":
-		cmd = exec.Command("ffplay", "-autoexit", "-")
+		cmd = exec.Command("ffplay", ffplayFlags...)
 	}
+
 	cmd.Stdin = r
 	if DebugEnabled() {
 		cmd.Stderr = os.Stderr
