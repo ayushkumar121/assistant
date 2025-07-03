@@ -4,7 +4,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -113,15 +112,7 @@ func startAudioCapture() (string, error) {
 	return tmpFile, nil
 }
 
-func generateSilence(durationMs int, sampleRate int, bytesPerSample int, channels int) []byte {
-	totalSamples := durationMs * sampleRate / 1000
-	return make([]byte, totalSamples*bytesPerSample*channels)
-}
-
 func speakFromReader(r io.Reader) error {
-	silence := generateSilence(500, 16000, 2, 1) // 500ms, 16kHz, 16-bit, mono
-	fullStream := io.MultiReader(bytes.NewReader(silence), r)
-
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -129,7 +120,7 @@ func speakFromReader(r io.Reader) error {
 	case "linux":
 		cmd = exec.Command("ffplay", "-autoexit", "-")
 	}
-	cmd.Stdin = fullStream
+	cmd.Stdin = r
 	if DebugEnabled() {
 		cmd.Stderr = os.Stderr
 	} else {
