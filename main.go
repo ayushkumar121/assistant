@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ayushkumar121/assistant/assests"
+	"github.com/ayushkumar121/assistant/assets"
 )
 
 func main() {
@@ -78,7 +78,7 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 		logger.Println("Transcription failed:", err)
 		return false, chatHistory
 	}
-	playAudio(assests.NotificationWav)
+	playAudio(assets.NotificationWav)
 	logger.Println("You said:", text)
 
 	chatHistory = append(chatHistory, map[string]string{
