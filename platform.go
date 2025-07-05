@@ -25,12 +25,14 @@ func recordAudio(duration int) (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
+			"-af", "highpass=f=100,lowpass=f=3000",
 			"-t", fmt.Sprint(duration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "pcm_s16le", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
+			"-af", "highpass=f=100,lowpass=f=3000",
 			"-t", fmt.Sprint(duration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "pcm_s16le", tmpFile)
@@ -61,14 +63,14 @@ func startAudioCapture() (string, error) {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffmpeg"),
 			"-f", "avfoundation", "-i", ":0",
-			"-af", "silencedetect=noise=-35dB:d=0.5",
+			"-af", "highpass=f=100,lowpass=f=3000,silencedetect=noise=-35dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
 	case "linux":
 		cmd = exec.Command("ffmpeg",
 			"-f", "alsa", "-i", "default",
-			"-af", "silencedetect=noise=-35dB:d=0.5",
+			"-af", "highpass=f=100,lowpass=f=3000,silencedetect=noise=-35dB:d=0.5",
 			"-t", fmt.Sprint(maxAudioDuration),
 			"-ac", "1", "-ar", "16000",
 			"-c:a", "flac", tmpFile)
@@ -118,6 +120,7 @@ func speakFromReader(r io.Reader) error {
 	ffplayFlags := []string{
 		"-autoexit",
 		"-nodisp",
+		"-af", "adelay=500|500:all=1",
 		"-i", "pipe:0",
 	}
 
