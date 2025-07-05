@@ -13,27 +13,29 @@ var (
 )
 
 const (
-	memoryFile         = "memory.txt"
-	memoryLimit        = 50
-	chatHistoryLimit   = 20
-	maxAudioDuration   = 30
-	wakeWordDuration   = 2
-	maxSilenceDuration = 3
-	wakeWord           = "alex"
-	whisperURL         = "https://api.openai.com/v1/audio/transcriptions"
-	chatURL            = "https://api.openai.com/v1/chat/completions"
-	ttsURL             = "https://api.openai.com/v1/audio/speech"
+	memoryFile              = "memory.txt"
+	memoryLimit             = 50
+	chatHistoryLimit        = 20
+	maxAudioDuration        = 30
+	wakeWordDuration        = 2
+	maxSilenceDuration      = 3
+	interruptDetectDuration = 1
+	wakeWord                = "alex"
+	whisperURL              = "https://api.openai.com/v1/audio/transcriptions"
+	chatURL                 = "https://api.openai.com/v1/chat/completions"
+	ttsURL                  = "https://api.openai.com/v1/audio/speech"
 
 	whisperModel = "whisper-1"
 	chatModel    = "gpt-4o-mini"
 	ttsModel     = "gpt-4o-mini-tts"
-	ttsVoice     = "onyx"
+	ttsVoice     = "ash"
 )
 
 var systemMessages = []map[string]string{
 	{
 		"role": "system",
-		"content": "You are a helpful voice assistant. Your pronouns are He/Him. Your name is " + wakeWord +
+		"content": "You are a helpful voice assistant created by Ayush Kumar" +
+			" Your pronouns are He/Him. Your name is " + wakeWord + " which also your wake word." +
 			"Periodically remind the user of timers, todos and other tasks they have asked you to remember. " +
 			"Keep responses short, conversational, and output JSON: " +
 			"{\"speak\": \"...\", \"memory\": \"...\", \"continueConversation\": \"true/false\"}. Only respond with valid JSON. " +

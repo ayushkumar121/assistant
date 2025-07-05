@@ -64,7 +64,6 @@ func transcribeStreamCloud() (string, error) {
 		return "", err
 	}
 	writer.WriteField("model", whisperModel)
-	writer.WriteField("language", "en")
 	writer.Close()
 
 	req, err := http.NewRequest("POST", whisperURL, &body)
@@ -95,13 +94,13 @@ func transcribeStreamCloud() (string, error) {
 	return res.Text, nil
 }
 
-type ChatGPTResponse struct {
+type ChatResponse struct {
 	Speak                string `json:"speak"`
 	Memory               string `json:"memory"`
 	ContinueConversation bool   `json:"continueConversation"`
 }
 
-func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, error) {
+func chatResponse(messages []map[string]string) (*ChatResponse, error) {
 	bodyData := map[string]any{
 		"model":    chatModel,
 		"messages": messages,
@@ -160,7 +159,7 @@ func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, err
 	}
 	rawResponse := res.Choices[0].Message.Content
 
-	var response ChatGPTResponse
+	var response ChatResponse
 	if err := json.Unmarshal([]byte(res.Choices[0].Message.Content), &response); err != nil {
 		return nil, fmt.Errorf("malformed response: %v", rawResponse)
 	}
@@ -168,7 +167,7 @@ func chatWithGPTWithHistory(messages []map[string]string) (*ChatGPTResponse, err
 	return &response, nil
 }
 
-func speak(text string) error {
+func speak(text string, interrupt chan struct{}) error {
 	bodyData := map[string]any{
 		"model":           ttsModel,
 		"input":           text,
@@ -197,5 +196,5 @@ func speak(text string) error {
 		return fmt.Errorf("OpenAI API error: %s", string(errResp))
 	}
 
-	return speakFromReader(resp.Body)
+	return speakFromReader(resp.Body, interrupt)
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,12 +31,12 @@ func main() {
 	chatHistory := []map[string]string{}
 	conversationActive := false
 
-	speak("Hi, I'm Alex")
+	speak("Hi, I'm Alex", nil)
 	for {
 		if !conversationActive {
 			if detectWakeWord() {
 				conversationActive = true
-				speak("What can I do for you?")
+				speak("What can I do for you?", nil)
 			}
 		} else {
 			// Start conversation
@@ -72,10 +74,18 @@ func detectWakeWord() bool {
 
 // Continues conversation with GPT and returns true if conversation should continue
 func continueConversation(chatHistory []map[string]string) (bool, []map[string]string) {
+	var err error
+	defer func() {
+		if err != nil {
+			debugLogger.Println(err)
+			playAudio(assets.ErrorNotificationWav)
+		}
+	}()
+
 	logger.Println("Continuing conversation")
 	text, err := transcribeStreamCloud()
 	if err != nil {
-		logger.Println("Transcription failed:", err)
+		err = fmt.Errorf("transcription error: %v", err)
 		return false, chatHistory
 	}
 	playAudio(assets.NotificationWav)
@@ -98,16 +108,21 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 	}, systemMessages...)
 	messages = append(messages, chatHistory...)
 
-	response, err := chatWithGPTWithHistory(messages)
+	response, err := chatResponse(messages)
 	if err != nil {
-		logger.Println("ChatGPT error:", err)
+		err = fmt.Errorf("gpt error: %v", err)
 		return false, chatHistory
 	}
 	logger.Println("GPT says:", response.Speak)
 	logger.Println("GPT will remember:", response.Memory)
 
 	saveMemory(response.Memory)
-	speak(response.Speak)
+
+	err = speakWithInterrupt(response.Speak)
+	if err != nil {
+		err = fmt.Errorf("speach error: %v", err)
+		return false, chatHistory
+	}
 
 	chatHistory = append(chatHistory, map[string]string{
 		"role":    "assistant",
@@ -120,4 +135,34 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 	}
 
 	return true, chatHistory
+}
+
+func speakWithInterrupt(text string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	interrupt := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				detected, err := listenForVoiceActivity(interruptDetectDuration)
+				if err != nil {
+					debugLogger.Println(err)
+					continue
+				}
+
+				if detected {
+					select {
+					case interrupt <- struct{}{}:
+					default:
+					}
+					return
+				}
+			}
+		}
+	}()
+	return speak(text, interrupt)
 }

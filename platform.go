@@ -15,6 +15,54 @@ import (
 	"time"
 )
 
+func listenForVoiceActivity(durationSeconds int) (detected bool, err error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("ffmpeg",
+			"-f", "avfoundation", "-i", ":0",
+			"-af", "highpass=f=100,lowpass=f=3000,silencedetect=noise=-35dB:d=0.5",
+			"-t", fmt.Sprintf("%d", durationSeconds),
+			"-ac", "1", "-ar", "16000",
+			"-f", "null", "-")
+	case "linux":
+		cmd = exec.Command("ffmpeg",
+			"-f", "alsa", "-i", "default",
+			"-af", "highpass=f=100,lowpass=f=3000,silencedetect=noise=-35dB:d=0.5",
+			"-t", fmt.Sprintf("%d", durationSeconds),
+			"-ac", "1", "-ar", "16000",
+			"-f", "null", "-")
+	default:
+		return false, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+
+	stderrPipe, _ := cmd.StderrPipe()
+	if err := cmd.Start(); err != nil {
+		return false, fmt.Errorf("failed to start ffmpeg: %v", err)
+	}
+
+	go func() {
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			debugLogger.Println(line)
+
+			if strings.Contains(line, "silence_end") {
+				logger.Println("Voice interrupt detected, stopping")
+				cmd.Process.Signal(os.Interrupt)
+				detected = true
+				break
+			}
+		}
+	}()
+
+	if err = cmd.Wait(); err != nil {
+		return false, fmt.Errorf("ffmpeg exited with error: %v", err)
+	}
+
+	return
+}
+
 func recordAudio(duration int) (string, error) {
 	logger.Println("Recording audio")
 	tmpFile := "/tmp/recording.wav"
@@ -55,7 +103,7 @@ func recordAudio(duration int) (string, error) {
 
 func startAudioCapture() (string, error) {
 	logger.Println("Starting audio capture")
-	tmpFile := "/tmp/audio.flac"
+	tmpFile := "/tmp/audio.wav"
 	_ = os.Remove(tmpFile)
 
 	var cmd *exec.Cmd
@@ -108,7 +156,6 @@ func startAudioCapture() (string, error) {
 		}
 	}()
 
-	// Wait until the command exits
 	if err := cmd.Wait(); err != nil {
 		return "", fmt.Errorf("ffmpeg exited with error: %v", err)
 	}
@@ -116,15 +163,16 @@ func startAudioCapture() (string, error) {
 	return tmpFile, nil
 }
 
-func speakFromReader(r io.Reader) error {
+// Pass interrupt as nil incase speak is non interruptable
+func speakFromReader(r io.Reader, interrupt chan struct{}) error {
+	var cmd *exec.Cmd
+
 	ffplayFlags := []string{
 		"-autoexit",
 		"-nodisp",
 		"-af", "adelay=500|500:all=1",
 		"-i", "pipe:0",
 	}
-
-	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command(resolveExecutablePath("ffplay"), ffplayFlags...)
@@ -139,7 +187,20 @@ func speakFromReader(r io.Reader) error {
 		cmd.Stderr = io.Discard
 	}
 	logger.Println("Speaking...")
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if interrupt != nil {
+		go func() {
+			<-interrupt
+			logger.Println("Speech interrupted")
+			cmd.Process.Signal(os.Interrupt)
+		}()
+	}
+
+	return cmd.Wait()
 }
 
 func playAudio(data []byte) error {
