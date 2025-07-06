@@ -17,8 +17,8 @@ const (
 	memoryLimit        = 50
 	chatHistoryLimit   = 20
 	maxAudioDuration   = 30
-	wakeWordDuration   = 2
-	maxSilenceDuration = 3
+	wakeWordDuration   = 1.5
+	maxSilenceDuration = 1
 	wakeWord           = "alex"
 	whisperURL         = "https://api.openai.com/v1/audio/transcriptions"
 	chatURL            = "https://api.openai.com/v1/chat/completions"
@@ -27,7 +27,7 @@ const (
 	whisperModel = "whisper-1"
 	chatModel    = "gpt-4o-mini"
 	ttsModel     = "gpt-4o-mini-tts"
-	ttsVoice     = "onyx"
+	ttsVoice     = "ash"
 )
 
 var systemMessages = []map[string]string{
