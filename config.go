@@ -17,7 +17,7 @@ const (
 	memoryLimit        = 50
 	chatHistoryLimit   = 20
 	maxAudioDuration   = 30
-	wakeWordDuration   = 1
+	wakeWordDuration   = 2
 	maxSilenceDuration = 1
 	wakeWord           = "alex"
 	whisperURL         = "https://api.openai.com/v1/audio/transcriptions"
