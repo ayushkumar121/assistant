@@ -149,6 +149,7 @@ func playAudio(data []byte) error {
 		"-autoexit",
 		"-nodisp",
 		"-i", "pipe:0",
+		"-af", "volume=2.0",
 	}
 
 	var cmd *exec.Cmd

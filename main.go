@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"strings"
@@ -11,38 +12,74 @@ import (
 )
 
 func main() {
-	if OpenAIAPIKey == "" {
-		logger.Fatal("❌ OPENAI_API_KEY environment variable not set")
-	}
-
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Channel for wake word detection
+	wakeWordChan := make(chan bool, 1)
+	
+	// Context for canceling active conversations
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start continuous wake word detection in background
+	go continuousWakeWordDetection(wakeWordChan)
+
+	playAudio(assets.StartupWav)
+
 	go func() {
 		<-sigChan
 		logger.Println("Shutting down gracefully...")
+		cancel()
 		os.Exit(0)
 	}()
 
-	// This holds only user ↔ assistant turns
+	var conversationCancel context.CancelFunc
 	chatHistory := []map[string]string{}
-	conversationActive := false
 
-	speak("Hi, I'm Alex")
 	for {
-		if !conversationActive {
-			if detectWakeWord() {
-				conversationActive = true
-				speak("What can I do for you?")
+		select {
+		case <-wakeWordChan:
+			// Cancel any ongoing conversation
+			if conversationCancel != nil {
+				logger.Println("Canceling previous conversation")
+				conversationCancel()
 			}
-		} else {
-			// Start conversation
-			conversationActive, chatHistory = continueConversation(chatHistory)
-			if !conversationActive {
-				chatHistory = []map[string]string{}
+
+			// Create new context for this conversation
+			conversationCtx, convCancel := context.WithCancel(ctx)
+			conversationCancel = convCancel
+
+			// Reset chat history for new conversation
+			chatHistory = []map[string]string{}
+			
+			speak("What can I do for you?")
+
+			// Start conversation in goroutine
+			go handleConversation(conversationCtx, chatHistory, func() {
+				conversationCancel = nil
+			})
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// Continuously detects wake word and sends signal when detected
+func continuousWakeWordDetection(wakeWordChan chan<- bool) {
+	for {
+		if detectWakeWord() {
+			select {
+			case wakeWordChan <- true:
+				// Wake word sent successfully
+			default:
+				// Channel full, skip (conversation already starting)
 			}
 		}
+		// Small delay to prevent excessive CPU usage
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -60,24 +97,56 @@ func detectWakeWord() bool {
 		logger.Println("No valid speech detected")
 		return false
 	}
+
 	logger.Println("Transcription:", text)
 
 	if !strings.Contains(strings.ToLower(text), wakeWord) {
 		logger.Println("Wake word not detected")
 		return false
 	}
+
 	logger.Println("Wake word detected")
 	return true
 }
 
+// Handles a conversation session
+func handleConversation(ctx context.Context, chatHistory []map[string]string, onComplete func()) {
+	defer onComplete()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Println("Conversation canceled")
+			return
+		default:
+			continueConv, newHistory := continueConversation(ctx, chatHistory)
+			chatHistory = newHistory
+			
+			if !continueConv {
+				logger.Println("Conversation ended naturally")
+				return
+			}
+		}
+	}
+}
+
 // Continues conversation with GPT and returns true if conversation should continue
-func continueConversation(chatHistory []map[string]string) (bool, []map[string]string) {
+func continueConversation(ctx context.Context, chatHistory []map[string]string) (bool, []map[string]string) {
 	logger.Println("Continuing conversation")
+
+	// Check if context was canceled
+	select {
+	case <-ctx.Done():
+		return false, chatHistory
+	default:
+	}
+
 	text, err := transcribeStreamCloud()
 	if err != nil {
 		logger.Println("Transcription failed:", err)
 		return false, chatHistory
 	}
+
 	playAudio(assets.NotificationWav)
 	logger.Println("You said:", text)
 
@@ -89,6 +158,13 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 	// Trim to last chatHistoryLimit non-system messages
 	if len(chatHistory) > chatHistoryLimit {
 		chatHistory = chatHistory[len(chatHistory)-chatHistoryLimit:]
+	}
+
+	// Check again before making API call
+	select {
+	case <-ctx.Done():
+		return false, chatHistory
+	default:
 	}
 
 	// Merge system + dynamic messages
@@ -103,6 +179,7 @@ func continueConversation(chatHistory []map[string]string) (bool, []map[string]s
 		logger.Println("ChatGPT error:", err)
 		return false, chatHistory
 	}
+
 	logger.Println("GPT says:", response.Speak)
 	logger.Println("GPT will remember:", response.Memory)
 

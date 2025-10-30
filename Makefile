@@ -6,6 +6,9 @@ WHISPER_BINARY = $(WHISPER_DIR)/build/bin/whisper-cli
 
 .PHONY: clean
 
+check:
+	go vet
+
 assistant: main.go memory.go platform.go openai.go config.go $(WHISPER_BINARY)
 	go build -ldflags="$(LD_FLAGS)" -o assistant .
 

@@ -27,7 +27,7 @@ const (
 	whisperModel = "whisper-1"
 	chatModel    = "gpt-4o-mini"
 	ttsModel     = "gpt-4o-mini-tts"
-	ttsVoice     = "ash"
+	ttsVoice     = "alloy"
 )
 
 var systemMessages = []map[string]string{
@@ -55,6 +55,10 @@ func DebugEnabled() bool {
 func init() {
 	if DebugEnabled() {
 		debugLogger.SetOutput(os.Stderr)
+	}
+
+	if OpenAIAPIKey == "" {
+		logger.Fatal("❌ OPENAI_API_KEY environment variable not set")
 	}
 }
 
