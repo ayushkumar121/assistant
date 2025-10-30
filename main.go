@@ -94,6 +94,7 @@ func detectWakeWord() bool {
 
 	text, err := transcribeStreamLocally(recordingFile)
 	if err != nil {
+		playAudio(assets.ErrorNotificationWav)
 		logger.Println("No valid speech detected")
 		return false
 	}
@@ -143,6 +144,7 @@ func continueConversation(ctx context.Context, chatHistory []map[string]string) 
 
 	text, err := transcribeStreamCloud()
 	if err != nil {
+		playAudio(assets.ErrorNotificationWav)
 		logger.Println("Transcription failed:", err)
 		return false, chatHistory
 	}
@@ -176,6 +178,7 @@ func continueConversation(ctx context.Context, chatHistory []map[string]string) 
 
 	response, err := chatWithGPTWithHistory(messages)
 	if err != nil {
+		playAudio(assets.ErrorNotificationWav)
 		logger.Println("ChatGPT error:", err)
 		return false, chatHistory
 	}
