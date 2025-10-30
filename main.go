@@ -102,7 +102,6 @@ func detectWakeWord() bool {
 	logger.Println("Transcription:", text)
 
 	if !strings.Contains(strings.ToLower(text), wakeWord) {
-		logger.Println("Wake word not detected")
 		return false
 	}
 

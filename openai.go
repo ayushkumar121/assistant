@@ -14,7 +14,7 @@ import (
 
 func transcribeStreamLocally(recordingFileName string) (string, error) {
 	cmd := exec.Command(resolveExecutablePath("whisper.cpp-1.7.5/build/bin/whisper-cli"),
-		"-m", resolveExecutablePath("whisper.cpp-1.7.5/models/ggml-tiny.en.bin"),
+		"-m", resolveExecutablePath("whisper.cpp-1.7.5/models/ggml-base.en.bin"),
 		"-nt", "-np",
 		"-f", recordingFileName,
 	)

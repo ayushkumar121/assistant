@@ -6,15 +6,12 @@ WHISPER_BINARY = $(WHISPER_DIR)/build/bin/whisper-cli
 
 .PHONY: clean
 
-check:
-	go vet
-
 assistant: main.go memory.go platform.go openai.go config.go $(WHISPER_BINARY)
 	go build -ldflags="$(LD_FLAGS)" -o assistant .
 
 $(WHISPER_BINARY): whisper.zip
 	unzip -o whisper.zip
-	cd $(WHISPER_DIR) && make && bash ./models/download-ggml-model.sh tiny.en
+	cd $(WHISPER_DIR) && make && bash ./models/download-ggml-model.sh base.en
 
 whisper.zip:
 	wget -O whisper.zip https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.7.5.zip
